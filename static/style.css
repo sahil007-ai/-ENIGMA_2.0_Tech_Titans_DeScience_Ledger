@@ -84,3 +84,7 @@ h2 { font-size: 1.25rem; margin-bottom: 1rem; color: var(--bg-dark-blue); }
 .activity-icon { margin-right: 1rem; font-size: 1.2rem; color: var(--bg-dark-blue); }
 .activity-text { font-weight: 500; margin-bottom: 0.25rem; }
 .activity-time { font-size: 0.85rem; color: #888; }
+
+/* Copyable elements for SHA/IPFS */
+.copyable { background: transparent; padding: 2px 6px; border-radius: 6px; color: var(--bg-dark-blue); font-weight: 700; }
+.copyable:hover { background: rgba(0,0,0,0.04); }

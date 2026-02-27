@@ -167,15 +167,41 @@
             const data = await response.json();
             
             if (response.ok) {
-                let message = data.message;
+                // Build a rich success message with copyable SHA and IPFS URL
+                let html = '<div class="alert alert-success">';
+                html += `<strong>${data.message}</strong><br>`;
                 if (data.transaction_hash) {
-                    message += `<br><small>Tx Hash: ${data.transaction_hash.substring(0, 20)}...</small>`;
+                    html += `Tx Hash: <code>${data.transaction_hash}</code><br>`;
+                }
+                if (data.file_hash) {
+                    html += `SHA256: <span class="copyable" data-value="${data.file_hash}">${data.file_hash.substring(0,24)}... (click to copy)</span><br>`;
+                }
+                if (data.ipfs_url) {
+                    // Show full ipfs url as clickable (copies to clipboard)
+                    html += `IPFS: <a href="https://ipfs.io/ipfs/${data.ipfs_url.replace('ipfs://','')}" target="_blank">${data.ipfs_url}</a> <span class="copyable" data-value="${data.ipfs_url}">(copy)</span><br>`;
                 }
                 if (data.is_valid !== undefined) {
-                     message += `<br><strong>Integrity Check: ${data.is_valid ? 'PASSED ✅' : 'FAILED ❌'}</strong>`;
+                     html += `<strong>Integrity Check: ${data.is_valid ? 'PASSED ✅' : 'FAILED ❌'}</strong><br>`;
                 }
-                resultDiv.innerHTML = `<div class="alert alert-success">${message}</div>`;
+                html += '</div>';
+                resultDiv.innerHTML = html;
                 form.reset();
+
+                // Attach copy handlers
+                document.querySelectorAll('.copyable').forEach(el => {
+                    el.style.cursor = 'pointer';
+                    el.addEventListener('click', async () => {
+                        const val = el.getAttribute('data-value');
+                        try {
+                            await navigator.clipboard.writeText(val);
+                            const orig = el.innerText;
+                            el.innerText = 'Copied!';
+                            setTimeout(() => el.innerText = orig, 1200);
+                        } catch (err) {
+                            console.error('Copy failed', err);
+                        }
+                    });
+                });
             } else {
                 resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
             }
