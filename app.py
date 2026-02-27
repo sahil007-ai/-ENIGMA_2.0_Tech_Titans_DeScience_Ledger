@@ -239,22 +239,22 @@ def auto_secure_file():
             tx_hash = anchor_on_chain(file_hash, ipfs_url)
 
             # Step 4: Record anchoring in local DB for activity feed
-                db_recorded = False
-                try:
-                    ensure_registry_table_exists()
-                    conn = sqlite3.connect(DATABASE_FILE)
-                    cur = conn.cursor()
-                    cur.execute(
-                        "INSERT INTO registry (filename, sha256, ipfs_url, tx_hash, timestamp) VALUES (?, ?, ?, ?, datetime('now'))",
-                        (filename, file_hash, ipfs_url, tx_hash)
-                    )
-                    conn.commit()
-                    conn.close()
-                    db_recorded = True
-                    print(f"Registry insert succeeded for {filename}, tx={tx_hash}")
-                except Exception as e:
-                    # Log but don't fail the request — anchoring succeeded
-                    print(f"Warning: failed to write registry record: {e}")
+            db_recorded = False
+            try:
+                ensure_registry_table_exists()
+                conn = sqlite3.connect(DATABASE_FILE)
+                cur = conn.cursor()
+                cur.execute(
+                    "INSERT INTO registry (filename, sha256, ipfs_url, tx_hash, timestamp) VALUES (?, ?, ?, ?, datetime('now'))",
+                    (filename, file_hash, ipfs_url, tx_hash),
+                )
+                conn.commit()
+                conn.close()
+                db_recorded = True
+                print(f"Registry insert succeeded for {filename}, tx={tx_hash}")
+            except Exception as e:
+                # Log but don't fail the request — anchoring succeeded
+                print(f"Warning: failed to write registry record: {e}")
 
             return jsonify(
                 {
@@ -263,7 +263,7 @@ def auto_secure_file():
                     "transaction_hash": tx_hash,
                     "file_hash": file_hash,
                     "ipfs_url": ipfs_url,
-                        "db_recorded": db_recorded
+                    "db_recorded": db_recorded,
                 }
             ), 200
 
@@ -278,8 +278,42 @@ def auto_secure_file():
 
 @app.route("/verify", methods=["POST"])
 def verify_file():
-    # ... (Keep your existing implementation) ...
-    pass
+    # Verify a local file against an IPFS metadata URL.
+    # Expects form-data: file (file upload) and ipfs_url (string)
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part detected.'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected.'}), 400
+
+    ipfs_url = request.form.get('ipfs_url') or request.form.get('ipfs')
+    if not ipfs_url:
+        return jsonify({'error': 'Missing ipfs_url parameter.'}), 400
+
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"verify_{filename}")
+    file.save(filepath)
+
+    try:
+        # Use storage.verify_file_integrity which compares computed SHA with IPFS metadata
+        is_valid = verify_file_integrity(filepath, ipfs_url)
+        # For extra debugging/visibility, also return the computed SHA
+        computed_sha = generate_file_hash(filepath)
+        result = {
+            'is_valid': bool(is_valid),
+            'computed_sha': computed_sha,
+            'ipfs_url': ipfs_url
+        }
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({'error': f'Verification failed: {e}'}), 500
+    finally:
+        try:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        except Exception:
+            pass
 
 
 @app.route("/about")
