@@ -51,6 +51,22 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row # Allows accessing columns by name
     return conn
 
+def ensure_registry_table_exists():
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS registry (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT,
+            sha256 TEXT,
+            ipfs_url TEXT,
+            tx_hash TEXT,
+            timestamp TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
 def ensure_oracles_table_exists():
     conn = sqlite3.connect(DATABASE_FILE)
     cursor = conn.cursor()
@@ -206,6 +222,21 @@ def auto_secure_file():
             # Step 3: Blockchain Anchor
             # IMPORTANT: This function needs to return the tx_hash AND update your DB
             tx_hash = anchor_on_chain(file_hash, ipfs_url)
+
+            # Step 4: Record anchoring in local DB for activity feed
+            try:
+                ensure_registry_table_exists()
+                conn = sqlite3.connect(DATABASE_FILE)
+                cur = conn.cursor()
+                cur.execute(
+                    "INSERT INTO registry (filename, sha256, ipfs_url, tx_hash, timestamp) VALUES (?, ?, ?, ?, datetime('now'))",
+                    (filename, file_hash, ipfs_url, tx_hash)
+                )
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                # Log but don't fail the request — anchoring succeeded
+                print(f"Warning: failed to write registry record: {e}")
             
             return jsonify({
                 'status': 'success',
