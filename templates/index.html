@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Data Anchor</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --secondary: #64748b;
+            --success: #22c55e;
+            --bg: #f8fafc;
+            --card: #ffffff;
+        }
+
+        body { 
+            font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+            max-width: 900px; 
+            margin: 40px auto; 
+            padding: 20px; 
+            background-color: var(--bg); 
+            color: #1e293b;
+        }
+
+        .card { 
+            background: var(--card); 
+            padding: 2.5rem; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); 
+        }
+
+        h2 { margin-top: 0; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        
+        .upload-section {
+            border: 2px dashed #cbd5e1;
+            padding: 30px;
+            text-align: center;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+
+        .upload-section:hover { border-color: var(--primary); }
+
+        .btn-main { 
+            background: var(--primary); 
+            color: white; 
+            width: 100%; 
+            padding: 12px; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            font-weight: 600; 
+            cursor: pointer;
+            transition: transform 0.1s, background 0.2s;
+        }
+
+        .btn-main:hover { background: #1d4ed8; }
+        .btn-main:active { transform: scale(0.98); }
+
+        /* Result Styles */
+        .result-container { 
+            display: none; 
+            margin-top: 30px; 
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .data-group { margin-bottom: 20px; }
+        
+        label { 
+            font-size: 0.875rem; 
+            font-weight: 600; 
+            color: var(--secondary); 
+            display: block; 
+            margin-bottom: 6px; 
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .data-row { 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+            background: #f1f5f9; 
+            padding: 12px; 
+            border-radius: 8px; 
+            border: 1px solid #e2e8f0; 
+        }
+
+        .data-text { 
+            font-family: 'ui-monospace', 'SFMono-Regular', Menlo, monospace; 
+            font-size: 14px; 
+            word-break: break-all; 
+            flex-grow: 1; 
+            color: #334155;
+        }
+
+        .btn-copy { 
+            background: white; 
+            border: 1px solid #cbd5e1; 
+            padding: 6px 12px; 
+            border-radius: 6px; 
+            font-size: 12px; 
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .btn-copy:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-copy.copied { background: var(--success); color: white; border-color: var(--success); }
+
+        #loadingOverlay {
+            display: none;
+            color: var(--primary);
+            font-weight: 600;
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🔒 Decentralized Data Anchor</h2>
+    <p>Upload your file to generate a unique SHA-256 fingerprint, store it on IPFS, and anchor the record to the Ethereum blockchain.</p>
+    
+    <div class="upload-section">
+        <input type="file" id="fileInput" accept=".csv,.json">
+        <p style="font-size: 12px; color: #64748b; margin-top: 8px;">Supports .CSV and .JSON (Max 16MB)</p>
+    </div>
+
+    <button class="btn-main" id="submitBtn" onclick="handleUpload()">Process & Anchor to Blockchain</button>
+    <div id="loadingOverlay">⏳ Processing... Please wait for blockchain confirmation.</div>
+
+    <div id="resultArea" class="result-container">
+        <div style="background: #dcfce7; padding: 15px; border-radius: 8px; color: #166534; margin-bottom: 25px; font-weight: 600;">
+            ✅ Transaction Complete! Data is secured.
+        </div>
+
+        <div class="data-group">
+            <label>SHA-256 File Hash</label>
+            <div class="data-row">
+                <span id="hashDisplay" class="data-text"></span>
+                <button class="btn-copy" onclick="copyContent('hashDisplay', this)">Copy Hash</button>
+            </div>
+        </div>
+
+        <div class="data-group">
+            <label>IPFS Storage URL</label>
+            <div class="data-row">
+                <span id="ipfsDisplay" class="data-text"></span>
+                <button class="btn-copy" onclick="copyContent('ipfsDisplay', this)">Copy URL</button>
+            </div>
+        </div>
+
+        <div class="data-group">
+            <label>Blockchain Transaction Hash</label>
+            <div class="data-row">
+                <span id="txDisplay" class="data-text"></span>
+                <button class="btn-copy" onclick="copyContent('txDisplay', this)">Copy Tx ID</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    async function handleUpload() {
+        const fileInput = document.getElementById('fileInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const loader = document.getElementById('loadingOverlay');
+        const results = document.getElementById('resultArea');
+
+        if (!fileInput.files[0]) return alert("Please select a file first!");
+
+        // UI State: Loading
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.5';
+        loader.style.display = 'block';
+        results.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        try {
+            const response = await fetch('/auto-secure', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                // Fill data
+                document.getElementById('hashDisplay').innerText = data.file_hash;
+                document.getElementById('ipfsDisplay').innerText = data.ipfs_url;
+                document.getElementById('txDisplay').innerText = data.transaction_hash;
+                
+                // Show results
+                results.style.display = 'block';
+                loader.style.display = 'none';
+            } else {
+                alert("Error: " + data.error);
+            }
+        } catch (err) {
+            alert("Network error. Make sure Flask is running.");
+            console.error(err);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            loader.style.display = 'none';
+        }
+    }
+
+    function copyContent(elementId, btn) {
+        const text = document.getElementById(elementId).innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = btn.innerText;
+            btn.innerText = "Copied!";
+            btn.classList.add('copied');
+            
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.classList.remove('copied');
+            }, 2000);
+        });
+    }
+</script>
+
+</body>
+</html>

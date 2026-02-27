@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The De-Science Ledger - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="app-container">
+    <aside class="sidebar">
+        <div class="brand">The De-Science Ledger</div>
+        <nav class="sidebar-nav">
+            <ul>
+                <li><a href="/" class="active">Dashboard</a></li>
+                <li><a href="#nodes">Verified Nodes</a></li>
+                <li><a href="#activity">Chain Activity</a></li>
+                <li><a href="/about">About Us</a></li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <div class="user-profile-icon">👤</div>
+        </header>
+
+        <div class="content-wrapper">
+            <section class="card hero-banner">
+                <div class="hero-content">
+                    <h1>Ensuring Provenance for Scientific Data</h1>
+                    <p class="subtitle">A Decentralized System for Research & Data Integrity.</p>
+                    <a href="#actions" class="btn btn-primary">Start Anchoring Data</a>
+                </div>
+                <div class="hero-badge">
+                    <span class="badge badge-yellow">Decentralized</span>
+                </div>
+            </section>
+
+            <section class="stats-row">
+                <div class="card stat-card">
+                    <div class="stat-info">
+                        <h3>Total Nodes</h3>
+                        <p class="stat-value">{{ stats.total_nodes }}</p>
+                    </div>
+                    <div class="stat-icon-container">🌐</div>
+                </div>
+                <div class="card stat-card">
+                    <div class="stat-info">
+                        <h3>Data Batches Anchored</h3>
+                        <p class="stat-value">{{ stats.data_batches }}</p>
+                    </div>
+                    <div class="stat-icon-container">🔗</div>
+                </div>
+                <div class="card stat-card current-block-card">
+                    <div class="stat-info">
+                        <span class="network-badge">{{ stats.network_name }}</span>
+                        <h3>Current Block</h3>
+                        <p class="stat-value">{{ stats.current_block }}</p>
+                    </div>
+                    <div class="stat-icon-container">📦</div>
+                </div>
+            </section>
+
+            <section id="actions" class="actions-section">
+                <div class="card action-card">
+                    <h2>Anchor Data to Chain</h2>
+                    <p class="form-info">Upload raw data (.csv, .json) to generate a hash, store on IPFS, and anchor to the blockchain.</p>
+                    <form id="auto-secure-form" class="de-science-form">
+                        <div class="form-group">
+                            <label for="secure-file">Select File:</label>
+                            <input type="file" id="secure-file" name="file" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-full">Auto-Secure File</button>
+                    </form>
+                    <div id="secure-result" class="form-result"></div>
+                </div>
+
+                <div class="card action-card">
+                    <h2>Verify Data Integrity</h2>
+                    <p class="form-info">Check if a local file matches the immutable record stored on IPFS.</p>
+                    <form id="verify-form" class="de-science-form">
+                        <div class="form-group">
+                            <label for="verify-file">Select File:</label>
+                            <input type="file" id="verify-file" name="file" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="ipfs-url">IPFS URL:</label>
+                            <input type="text" id="ipfs-url" name="ipfs_url" placeholder="ipfs://..." required>
+                        </div>
+                        <button type="submit" class="btn btn-secondary btn-full">Verify Integrity</button>
+                    </form>
+                    <div id="verify-result" class="form-result"></div>
+                </div>
+            </section>
+
+            <section class="bottom-section">
+                <div id="nodes" class="card nodes-card">
+                    <h2>Verified Research Nodes</h2>
+                    <div class="table-responsive">
+                        <table class="nodes-table">
+                            <thead>
+                                <tr>
+                                    <th>Node ID</th>
+                                    <th>Type</th>
+                                    <th>Location</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for node in nodes %}
+                                <tr>
+                                    <td>{{ node.id }}</td>
+                                    <td>{{ node.type }}</td>
+                                    <td>{{ node.location }}</td>
+                                    <td>
+                                        <span class="status-badge {{ 'status-verified' if node.status == 'Verified' else 'status-syncing' if node.status == 'Syncing' else 'status-offline' }}">
+                                            {{ node.status }} 
+                                            {% if node.status == 'Verified' %}✓{% elif node.status == 'Syncing' %}↻{% endif %}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="activity" class="card activity-card">
+                    <h2>Recent Chain Activity</h2>
+                    <ul class="activity-feed">
+                        {% for item in activity %}
+                        <li class="activity-item">
+                            <div class="activity-icon">📃</div>
+                            <div class="activity-content">
+                                <p class="activity-text">{{ item.text }}</p>
+                                <span class="activity-time">{{ item.time }}</span>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<script>
+    // Helper function to handle form submissions via AJAX
+    async function handleFormSubmit(event, url, resultDivId) {
+        event.preventDefault();
+        const form = event.target;
+        const resultDiv = document.getElementById(resultDivId);
+        const formData = new FormData(form);
+        
+        resultDiv.innerHTML = '<div class="alert alert-info">Processing...</div>';
+        
+        try {
+            const response = await fetch(url, { method: 'POST', body: formData });
+            const data = await response.json();
+            
+            if (response.ok) {
+                let message = data.message;
+                if (data.transaction_hash) {
+                    message += `<br><small>Tx Hash: ${data.transaction_hash.substring(0, 20)}...</small>`;
+                }
+                if (data.is_valid !== undefined) {
+                     message += `<br><strong>Integrity Check: ${data.is_valid ? 'PASSED ✅' : 'FAILED ❌'}</strong>`;
+                }
+                resultDiv.innerHTML = `<div class="alert alert-success">${message}</div>`;
+                form.reset();
+            } else {
+                resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+            }
+        } catch (error) {
+            resultDiv.innerHTML = `<div class="alert alert-danger">An unexpected error occurred.</div>`;
+            console.error('Error:', error);
+        }
+    }
+
+    // Attach event listeners to forms
+    document.getElementById('auto-secure-form').addEventListener('submit', (e) => handleFormSubmit(e, '/auto-secure', 'secure-result'));
+    document.getElementById('verify-form').addEventListener('submit', (e) => handleFormSubmit(e, '/verify', 'verify-result'));
+</script>
+
+</body>
+</html>
