@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Oracle Register</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="app-container">
+    <main class="main-content">
+      <div class="content-wrapper">
+        <section class="card">
+          <h2>Register Oracle (Universities / Labs)</h2>
+          {% if success %}
+            <div class="alert alert-success">Registration successful. Please <a href="{{ url_for('oracle_login') }}">login</a>.</div>
+          {% elif error %}
+            <div class="alert alert-danger">Error: {{ error }}</div>
+          {% endif %}
+          <form method="post">
+            <div class="form-group">
+              <label>Email</label>
+              <input type="email" name="email" required>
+            </div>
+            <div class="form-group">
+              <label>Full name / Institution</label>
+              <input type="text" name="name">
+            </div>
+            <div class="form-group">
+              <label>Type (University / Lab)</label>
+              <input type="text" name="org_type">
+            </div>
+            <div class="form-group">
+              <label>Password</label>
+              <input type="password" name="password" required>
+            </div>
+            <button class="btn btn-primary" type="submit">Register</button>
+          </form>
+        </section>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

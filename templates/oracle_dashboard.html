@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Oracle Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="app-container">
+    <main class="main-content">
+      <div class="content-wrapper">
+        <section class="card">
+          <h2>Oracle Dashboard</h2>
+          <p>Signed in as: <strong>{{ oracle_email }}</strong> — <a href="{{ url_for('oracle_logout') }}">Logout</a></p>
+
+          <h3>Verify SHA / IPFS</h3>
+          <form id="verify-form" method="post" action="{{ url_for('oracle_verify') }}">
+            <div class="form-group">
+              <label>SHA256</label>
+              <input type="text" name="sha256" required>
+            </div>
+            <div class="form-group">
+              <label>IPFS URL (ipfs://CID)</label>
+              <input type="text" name="ipfs_url" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Verify</button>
+          </form>
+
+          <div id="verify-result" style="margin-top:1rem"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+<script>
+document.getElementById('verify-form').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const form = e.target;
+  const data = new FormData(form);
+  document.getElementById('verify-result').innerHTML = '<div class="alert alert-info">Checking...</div>';
+  const resp = await fetch(form.action, { method: 'POST', body: data });
+  const j = await resp.json();
+  if (resp.ok) {
+    let html = '<div class="alert alert-success">';
+    html += 'Matches IPFS: ' + (j.matches_ipfs ? 'Yes' : 'No') + '<br>';
+    html += 'Anchored on-chain: ' + (j.anchored ? 'Yes' : 'No') + '<br>';
+    html += 'Overall Valid: ' + (j.is_valid ? 'YES ✅' : 'NO ❌');
+    html += '</div>';
+    document.getElementById('verify-result').innerHTML = html;
+  } else {
+    document.getElementById('verify-result').innerHTML = '<div class="alert alert-danger">Error: ' + (j.error || 'Unknown') + '</div>';
+  }
+});
+</script>
+</body>
+</html>

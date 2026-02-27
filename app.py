@@ -3,6 +3,8 @@ import sqlite3
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask import redirect, url_for, session
 
 # --- Import Custom Modules ---
 # Import node data from our new dedicated file
@@ -22,6 +24,7 @@ except ImportError as e:
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'dev-secret-key')
 
 # --- Configuration ---
 UPLOAD_FOLDER = 'uploads'
@@ -47,6 +50,42 @@ def get_db_connection():
     conn = sqlite3.connect(DATABASE_FILE)
     conn.row_factory = sqlite3.Row # Allows accessing columns by name
     return conn
+
+def ensure_oracles_table_exists():
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS oracles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT,
+            org_type TEXT,
+            password_hash TEXT NOT NULL,
+            created_at TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def create_oracle(email, name, org_type, password):
+    ensure_oracles_table_exists()
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    pw_hash = generate_password_hash(password)
+    cursor.execute("INSERT INTO oracles (email, name, org_type, password_hash, created_at) VALUES (?, ?, ?, ?, datetime('now'))",
+                   (email, name, org_type, pw_hash))
+    conn.commit()
+    conn.close()
+
+def authenticate_oracle(email, password):
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT password_hash FROM oracles WHERE email = ?', (email,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return False
+    return check_password_hash(row[0], password)
 
 def get_anchored_stats_from_db():
     """Queries the local DB for counts and recent activity."""
@@ -192,6 +231,89 @@ def verify_file():
 @app.route('/about')
 def about():
     return render_template('about.html')
+
+
+# --- Oracle UI Routes (for universities / labs) ---
+@app.route('/oracle/register', methods=['GET', 'POST'])
+def oracle_register():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        name = request.form.get('name')
+        org_type = request.form.get('org_type')
+        password = request.form.get('password')
+        try:
+            create_oracle(email, name, org_type, password)
+            return render_template('oracle_register.html', success=True)
+        except Exception as e:
+            return render_template('oracle_register.html', error=str(e))
+    return render_template('oracle_register.html')
+
+
+@app.route('/oracle/login', methods=['GET', 'POST'])
+def oracle_login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        if authenticate_oracle(email, password):
+            session['oracle_email'] = email
+            return redirect(url_for('oracle_dashboard'))
+        return render_template('oracle_login.html', error='Invalid credentials')
+    return render_template('oracle_login.html')
+
+
+@app.route('/oracle/logout')
+def oracle_logout():
+    session.pop('oracle_email', None)
+    return redirect(url_for('oracle_login'))
+
+
+@app.route('/oracle/dashboard')
+def oracle_dashboard():
+    if 'oracle_email' not in session:
+        return redirect(url_for('oracle_login'))
+    return render_template('oracle_dashboard.html', oracle_email=session.get('oracle_email'))
+
+
+@app.route('/oracle/verify', methods=['POST'])
+def oracle_verify():
+    # Accepts form or JSON with 'sha256' and 'ipfs_url'
+    data = request.get_json() if request.is_json else request.form
+    sha = data.get('sha256') or data.get('sha')
+    ipfs_url = data.get('ipfs_url') or data.get('ipfs')
+
+    if not sha or not ipfs_url:
+        return jsonify({'error': 'Missing parameters', 'is_valid': False}), 400
+
+    # 1) Check IPFS metadata (if available) against provided sha
+    try:
+        from storage import IPFS_GATEWAY_URL
+        import requests
+
+        cid = ipfs_url.replace('ipfs://', '') if ipfs_url.startswith('ipfs://') else ipfs_url
+        resp = requests.get(f"{IPFS_GATEWAY_URL}{cid}", timeout=10)
+        resp.raise_for_status()
+        meta = resp.json()
+        stored_sha = meta.get('sha256_hash')
+        matches_ipfs = (stored_sha == sha)
+    except Exception as e:
+        return jsonify({'error': f'Failed to fetch IPFS metadata: {e}', 'is_valid': False}), 500
+
+    # 2) Optionally check local DB registry for anchored tx (best-effort)
+    anchored = False
+    try:
+        conn = get_db_connection()
+        if conn:
+            cur = conn.cursor()
+            cur.execute('SELECT tx_hash, ipfs_url FROM registry WHERE sha256 = ? OR ipfs_url = ? LIMIT 1', (sha, ipfs_url))
+            row = cur.fetchone()
+            if row and row['tx_hash']:
+                anchored = True
+            conn.close()
+    except Exception:
+        anchored = False
+
+    is_valid = matches_ipfs and anchored
+    return jsonify({'is_valid': is_valid, 'matches_ipfs': matches_ipfs, 'anchored': anchored})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
