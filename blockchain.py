@@ -41,6 +41,9 @@ if w3.is_connected():
 else:
     contract = None
 
+# Provide an alias that other modules expect (`web3`) so imports are compatible
+web3 = w3
+
 def anchor_on_chain(sha256_hash, ipfs_uri):
     """Sends a transaction to the blockchain to permanently store the hash and URI."""
     if not w3.is_connected() or not contract:

@@ -56,7 +56,13 @@
                 <div class="card stat-card current-block-card">
                     <div class="stat-info">
                         <span class="network-badge">{{ stats.network_name }}</span>
-                        <h3>Current Block</h3>
+                        <h3>Current Block
+                            {% if stats.current_block != 'Offline' and stats.current_block != 'Error' %}
+                                <span class="status-badge status-verified" style="font-size:0.75rem; margin-left:8px;">Online ✓</span>
+                            {% else %}
+                                <span class="status-badge status-offline" style="font-size:0.75rem; margin-left:8px;">Offline</span>
+                            {% endif %}
+                        </h3>
                         <p class="stat-value">{{ stats.current_block }}</p>
                     </div>
                     <div class="stat-icon-container">📦</div>
